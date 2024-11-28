@@ -1,0 +1,87 @@
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+local Players = game:GetService("Players")
+
+local REFRESH_COOLDOWN = 2
+local VALID_BALL_NAMES = {
+    ["TPS"] = true,
+    ["ESA"] = true,
+    ["MRS"] = true,
+    ["PRS"] = true,
+    ["MPS"] = true
+}
+local MOVEMENT_KEYS = {
+    [Enum.KeyCode.W] = true,
+    [Enum.KeyCode.A] = true,
+    [Enum.KeyCode.S] = true,
+    [Enum.KeyCode.D] = true,
+    [Enum.KeyCode.Space] = true
+}
+
+local player = Players.LocalPlayer
+local balls = {}
+local lastRefreshTime = os.time()
+local reach = 5
+
+local function showNotification(message)
+    StarterGui:SetCore("SendNotification", {
+        Title = "Sistema de Alcance",
+        Text = message,
+        Duration = 0.5
+    })
+end
+
+local function refreshBalls(force)
+    if not force and (os.time() - lastRefreshTime) < REFRESH_COOLDOWN then
+        showNotification("Aguarde alguns segundos para atualizar novamente")
+        return
+    end
+
+    lastRefreshTime = os.time()
+    table.clear(balls)
+
+    for _, object in ipairs(workspace:GetDescendants()) do
+        if VALID_BALL_NAMES[object.Name] then
+            table.insert(balls, object)
+        end
+    end
+
+    showNotification("Bolas atualizadas com sucesso")
+end
+
+local function handleBallInteraction()
+    local rightLeg = player.Character and player.Character:FindFirstChild("Right Leg")
+    if not rightLeg then return end
+
+    local touchInterest = rightLeg:FindFirstChild("TouchInterest", true)
+    if not touchInterest then return end
+
+    for _, ball in ipairs(balls) do
+        if (ball.Position - rightLeg.Position).Magnitude < reach then
+            firetouchinterest(ball, touchInterest.Parent, 0)
+            firetouchinterest(ball, touchInterest.Parent, 1)
+            break
+        end
+    end
+end
+
+local function updateReach(increment)
+    reach = reach + increment
+    showNotification("Alcance definido para: " .. reach)
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if MOVEMENT_KEYS[input.KeyCode] or gameProcessed then return end
+
+    if input.KeyCode == Enum.KeyCode.Comma then
+        updateReach(-1)
+    elseif input.KeyCode == Enum.KeyCode.Period then
+        updateReach(1)
+    else
+        refreshBalls(false)
+        handleBallInteraction()
+    end
+end)
+
+refreshBalls(true)
+showNotification("Script iniciado com sucesso")
