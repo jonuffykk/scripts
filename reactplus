@@ -1,0 +1,251 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Stats = game:GetService("Stats")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+if not player then return end
+
+local PingRemote = ReplicatedStorage:WaitForChild("Events", 30):WaitForChild("UpdatePing", 30)
+if not PingRemote then return end
+
+local Config = {
+    Active = false,
+    MinPing = 70,
+    MaxPing = 90,
+    UpdateTime = 2,
+    DynamicMode = false,
+    DynamicReduction = 60,
+    MaxFails = 3,
+    Timeout = 10,
+    CheckInterval = 0.1,
+    FailCount = 0,
+    MossHelper = false,
+    Range = 2
+}
+
+local Window = Rayfield:CreateWindow({
+    Name = "React Plus",
+    LoadingTitle = "React Plus",
+    LoadingSubtitle = "by Jonuffy",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "ReactPlusConfig",
+        FileName = "Config"
+    },
+    KeySystem = false,
+    Theme = "Ocean"
+})
+
+local ReactTab = Window:CreateTab("React", 4483362458)
+local PingTab = Window:CreateTab("Ping", 4483362458)
+local SettingsTab = Window:CreateTab("Settings", 4483362458)
+
+local function getRealPing()
+    local success, ping = pcall(function()
+        return math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+    end)
+    return success and ping or 0
+end
+
+local function updatePing()
+    if not Config.Active then return end
+
+    local currentPing = getRealPing()
+    local pingToSend = Config.DynamicMode and math.random(Config.MinPing, Config.MaxPing) or math.max(1, currentPing - Config.DynamicReduction)
+
+    local success = pcall(function()
+        PingRemote:FireServer(pingToSend)
+    end)
+
+    if not success then
+        Config.FailCount += 1
+        if Config.FailCount >= Config.MaxFails then
+            Config.Active = false
+            Rayfield:Notify({Title = "Error", Content = "System disabled due to failures", Duration = 3})
+        end
+    else
+        Config.FailCount = 0
+    end
+end
+
+local function startPingLoop()
+    local startTime = tick()
+    while not player:FindFirstChild('leaderstats') and tick() - startTime <= Config.Timeout do
+        task.wait(Config.CheckInterval)
+    end
+
+    if not player:FindFirstChild('leaderstats') then
+        Config.Active = false
+        Rayfield:Notify({Title = "Error", Content = "System timeout", Duration = 3})
+        return
+    end
+
+    if Config.Active then
+        task.spawn(function()
+            while Config.Active do
+                updatePing()
+                task.wait(Config.UpdateTime)
+            end
+        end)
+    end
+end
+
+ReactTab:CreateSection("Main Controls")
+
+ReactTab:CreateToggle({
+    Name = "Moss Helper",
+    Info = "Assists with Moss detection",
+    CurrentValue = false,
+    Flag = "ToggleMoss",
+    Callback = function(Value)
+        Config.MossHelper = Value
+    end
+})
+
+ReactTab:CreateSlider({
+    Name = "Range",
+    Info = "Adjustment range for reactions",
+    Range = {2, 10},
+    Increment = 1,
+    Suffix = "x",
+    CurrentValue = Config.Range,
+    Flag = "SliderRange",
+    Callback = function(Value)
+        Config.Range = Value
+    end
+})
+
+PingTab:CreateSection("Status")
+local statusLabel = PingTab:CreateLabel("Status: Disabled")
+local pingLabel = PingTab:CreateLabel("Current Ping: 0ms")
+
+PingTab:CreateSection("Controls")
+
+local toggleReact = PingTab:CreateToggle({
+    Name = "Enable React Plus",
+    Info = "Toggles the system on/off",
+    CurrentValue = false,
+    Flag = "ToggleReact",
+    Callback = function(Value)
+        Config.Active = Value
+        Config.FailCount = 0
+        statusLabel:Set("Status: " .. (Value and "Enabled" or "Disabled"))
+        if Value then
+            startPingLoop()
+            Rayfield:Notify({Title = "Success", Content = "System enabled", Duration = 2})
+        end
+    end
+})
+
+local dynamicToggle = PingTab:CreateToggle({
+    Name = "Dynamic Mode",
+    Info = "Toggle between fixed and random ping",
+    CurrentValue = false,
+    Flag = "ToggleDynamic",
+    Callback = function(Value)
+        Config.DynamicMode = Value
+        if Value then
+            if sliderReduction then sliderReduction:Set(Config.DynamicReduction) end
+            if sliderMin then sliderMin:Set(Config.MinPing) end
+            if sliderMax then sliderMax:Set(Config.MaxPing) end
+        end
+        if sliderReduction then sliderReduction.Instance.Visible = not Value end
+        if sliderMin then sliderMin.Instance.Visible = Value end
+        if sliderMax then sliderMax.Instance.Visible = Value end
+    end
+})
+
+PingTab:CreateSection("Adjustments")
+
+local sliderReduction, sliderMin, sliderMax
+
+sliderReduction = PingTab:CreateSlider({
+    Name = "Reduction",
+    Info = "Value to reduce from current ping",
+    Range = {1, 1000},
+    Increment = 1,
+    Suffix = "ms",
+    CurrentValue = Config.DynamicReduction,
+    Flag = "SliderReduction",
+    Callback = function(Value)
+        Config.DynamicReduction = Value
+    end
+})
+
+sliderMin = PingTab:CreateSlider({
+    Name = "Minimum",
+    Info = "Minimum ping (dynamic mode)",
+    Range = {1, 1000},
+    Increment = 1,
+    Suffix = "ms",
+    CurrentValue = Config.MinPing,
+    Flag = "SliderMinPing",
+    Callback = function(Value)
+        Config.MinPing = Value
+        if Config.MinPing > Config.MaxPing then
+            Config.MaxPing = Value
+            if sliderMax then sliderMax:Set(Value) end
+        end
+    end
+})
+
+sliderMax = PingTab:CreateSlider({
+    Name = "Maximum",
+    Info = "Maximum ping (dynamic mode)",
+    Range = {1, 1000},
+    Increment = 1,
+    Suffix = "ms",
+    CurrentValue = Config.MaxPing,
+    Flag = "SliderMaxPing",
+    Callback = function(Value)
+        Config.MaxPing = Value
+        if Config.MaxPing < Config.MinPing then
+            Config.MinPing = Value
+            if sliderMin then sliderMin:Set(Value) end
+        end
+    end
+})
+
+SettingsTab:CreateSection("System")
+
+SettingsTab:CreateSlider({
+    Name = "Update Time",
+    Info = "Interval between updates",
+    Range = {0.1, 5},
+    Increment = 0.1,
+    Suffix = "s",
+    CurrentValue = Config.UpdateTime,
+    Flag = "UpdateTime",
+    Callback = function(Value)
+        Config.UpdateTime = Value
+    end
+})
+
+SettingsTab:CreateSlider({
+    Name = "Max Fails",
+    Info = "Maximum fails before disable",
+    Range = {1, 10},
+    Increment = 1,
+    CurrentValue = Config.MaxFails,
+    Flag = "MaxFails",
+    Callback = function(Value)
+        Config.MaxFails = Value
+    end
+})
+
+RunService.Heartbeat:Connect(function()
+    if Config.Active then
+        pingLabel:Set("Current Ping: " .. getRealPing() .. "ms")
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.End and not gameProcessed then
+        Rayfield:Toggle()
+    end
+end)
+
+Rayfield:LoadConfiguration()
