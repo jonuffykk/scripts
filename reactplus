@@ -74,16 +74,11 @@ end
 
 local function updatePing()
     if not Config.Active then return end
-
     local clientPing = player.PlayerScripts:FindFirstChild("ClientPing")
-    if clientPing then
-        clientPing.Enabled = not Config.Active
-    end
+    if clientPing then clientPing.Enabled = not Config.Active end
 
     local currentPing = getRealPing()
-    local pingToSend = Config.DynamicMode and
-        math.random(Config.MinPing, Config.MaxPing) or
-        math.max(1, currentPing - Config.DynamicReduction)
+    local pingToSend = Config.DynamicMode and math.random(Config.MinPing, Config.MaxPing) or math.max(1, currentPing - Config.DynamicReduction)
 
     local success, err = pcall(function()
         PingRemote:FireServer(pingToSend)
@@ -93,9 +88,7 @@ local function updatePing()
         Config.FailCount = Config.FailCount + 1
         if Config.FailCount >= Config.MaxFails then
             Config.Active = false
-            if clientPing then
-                clientPing.Enabled = true
-            end
+            if clientPing then clientPing.Enabled = true end
             statusLabel:Set("Status: Error - Too many fails")
             Rayfield:Notify({
                 Title = "Error",
@@ -110,7 +103,6 @@ end
 
 local function startPingLoop()
     local startTime = tick()
-
     while not player:FindFirstChild('leaderstats') and tick() - startTime <= Config.Timeout do
         task.wait(Config.CheckInterval)
     end
@@ -128,10 +120,7 @@ local function startPingLoop()
 
     if Config.Active then
         local clientPing = player.PlayerScripts:FindFirstChild("ClientPing")
-        if clientPing then
-            clientPing.Enabled = false
-        end
-
+        if clientPing then clientPing.Enabled = false end
         task.spawn(function()
             while Config.Active do
                 updatePing()
@@ -143,7 +132,6 @@ end
 
 local function updateHeadSize()
     if not player.Character or not player.Character:FindFirstChild("Head") then return end
-
     local head = player.Character.Head
     local originalSize = Vector3.new(2, 2, 2)
     local originalTransparency = 0
@@ -162,7 +150,6 @@ end
 
 local function createHitboxVisualizer()
     if not player.Character or not player.Character:FindFirstChild("Head") then return end
-
     local existingHitbox = player.Character:FindFirstChild("HitboxVisualizer")
     if existingHitbox then existingHitbox:Destroy() end
 
@@ -182,13 +169,11 @@ local function createHitboxVisualizer()
 
     hitboxPart.CFrame = player.Character.Head.CFrame
     hitboxPart.Parent = player.Character
-
     return hitboxPart
 end
 
 local function updateHitboxVisualizer()
     if not player.Character or not player.Character:FindFirstChild("Head") then return end
-
     local hitboxPart = player.Character:FindFirstChild("HitboxVisualizer")
 
     if Config.ShowHitbox then
@@ -197,9 +182,7 @@ local function updateHitboxVisualizer()
         end
         hitboxPart.Size = player.Character.Head.Size
     else
-        if hitboxPart then
-            hitboxPart:Destroy()
-        end
+        if hitboxPart then hitboxPart:Destroy() end
     end
 end
 
@@ -224,7 +207,12 @@ ReactTab:CreateToggle({
     Flag = "ToggleHitbox",
     Callback = function(Value)
         Config.ShowHitbox = Value
-        updateHitboxVisualizer()
+        if Value then
+            createHitboxVisualizer()
+        else
+            local hitboxPart = player.Character and player.Character:FindFirstChild("HitboxVisualizer")
+            if hitboxPart then hitboxPart:Destroy() end
+        end
     end
 })
 
@@ -237,6 +225,13 @@ ReactTab:CreateButton({
             updateHeadSize()
             updateHitboxVisualizer()
         end
+        ReactTab:Get("HeadSize"):Set("2,2,2")
+        ReactTab:Get("HeadTransparency"):Set(0.5)
+        Rayfield:Notify({
+            Title = "Reset",
+            Content = "Head size and transparency reset to default",
+            Duration = 2
+        })
     end
 })
 
@@ -248,6 +243,12 @@ ReactTab:CreateButton({
             updateHeadSize()
             updateHitboxVisualizer()
         end
+        ReactTab:Get("HeadOffset"):Set("0,0,0")
+        Rayfield:Notify({
+            Title = "Reset",
+            Content = "Head position reset to default",
+            Duration = 2
+        })
     end
 })
 
@@ -290,16 +291,11 @@ ReactTab:CreateInput({
             end
             return true
         end
-        Rayfield:Notify({
-            Title = "Invalid Input",
-            Content = "Please use format: x,y,z (e.g. 2,2,2)",
-            Duration = 3
-        })
         return false
     end
 })
 
-ReactTab:CreateInput({
+local sizeInput = ReactTab:CreateInput({
     Name = "Head Offset (X,Y,Z)",
     PlaceholderText = "0,0,0",
     RemoveTextAfterFocusLost = false,
@@ -320,11 +316,6 @@ ReactTab:CreateInput({
             end
             return true
         end
-        Rayfield:Notify({
-            Title = "Invalid Input",
-            Content = "Please use format: x,y,z (e.g. 0,0,0)",
-            Duration = 3
-        })
         return false
     end
 })
@@ -340,11 +331,9 @@ local toggleReact = PingTab:CreateToggle({
         Config.Active = Value
         Config.FailCount = 0
         statusLabel:Set("Status: " .. (Value and "Enabled" or "Disabled"))
-
         if player.PlayerScripts:FindFirstChild("ClientPing") then
             player.PlayerScripts.ClientPing.Enabled = not Value
         end
-
         if Value then
             startPingLoop()
             Rayfield:Notify({Title = "Success", Content = "System enabled", Duration = 2})
@@ -359,15 +348,9 @@ local dynamicToggle = PingTab:CreateToggle({
     Flag = "ToggleDynamic",
     Callback = function(Value)
         Config.DynamicMode = Value
-        if sliderReduction then
-            sliderReduction.Instance.Visible = not Value
-        end
-        if sliderMin then
-            sliderMin.Instance.Visible = Value
-        end
-        if sliderMax then
-            sliderMax.Instance.Visible = Value
-        end
+        if sliderReduction then sliderReduction.Instance.Visible = not Value end
+        if sliderMin then sliderMin.Instance.Visible = Value end
+        if sliderMax then sliderMax.Instance.Visible = Value end
     end
 })
 
@@ -422,6 +405,69 @@ local sliderMax = PingTab:CreateSlider({
 
 SettingsTab:CreateSection("System")
 
+SettingsTab:CreateButton({
+    Name = "Reset Default",
+    Callback = function()
+        Config.MinPing = 70
+        Config.MaxPing = 90
+        Config.UpdateTime = 2
+        Config.DynamicMode = false
+        Config.DynamicReduction = 60
+        Config.MaxFails = 3
+        Config.Timeout = 10
+        Config.CheckInterval = 0.1
+        Config.FailCount = 0
+        Config.MossHelper = false
+        Config.ShowHitbox = false
+        Config.HeadSize = Vector3.new(2, 2, 2)
+        Config.HeadOffset = Vector3.new(0, 0, 0)
+        Config.HeadTransparency = 0.5
+
+        if sliderReduction then sliderReduction:Set(60) end
+        if sliderMin then sliderMin:Set(70) end
+        if sliderMax then sliderMax:Set(90) end
+        ReactTab:Get("HeadSize"):Set("2,2,2")
+        ReactTab:Get("HeadOffset"):Set("0,0,0")
+        ReactTab:Get("HeadTransparency"):Set(0.5)
+        ReactTab:Get("ToggleMoss"):Set(false)
+        ReactTab:Get("ToggleHitbox"):Set(false)
+        PingTab:Get("ToggleDynamic"):Set(false)
+
+        updateHeadSize()
+        updateHitboxVisualizer()
+
+        Rayfield:Notify({
+            Title = "Reset Complete",
+            Content = "All settings restored to default",
+            Duration = 2
+        })
+    end
+})
+
+SettingsTab:CreateButton({
+    Name = "Respawn",
+    Callback = function()
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            local currentPosition = player.Character.HumanoidRootPart.CFrame
+            local currentHealth = player.Character.Humanoid.Health
+
+            task.spawn(function()
+                player.Character:BreakJoints()
+                task.wait(0.1)
+                if player.Character then player.Character:Destroy() end
+                task.wait(0.1)
+
+                player.CharacterAdded:Wait()
+                task.wait(0.3)
+
+                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    player.Character.HumanoidRootPart.CFrame = currentPosition
+                end
+            end)
+        end
+    end
+})
+
 SettingsTab:CreateSlider({
     Name = "Update Time",
     Info = "Interval between updates",
@@ -469,42 +515,45 @@ player.CharacterAdded:Connect(function(char)
     local head = char:WaitForChild("Head", 10)
     if head then
         task.wait(0.1)
-        if Config.MossHelper then
-            updateHeadSize()
-        end
-        if Config.ShowHitbox then
-            createHitboxVisualizer()
-        end
+        if Config.MossHelper then updateHeadSize() end
+        if Config.ShowHitbox then createHitboxVisualizer() end
     end
 end)
 
 player.CharacterRemoving:Connect(function()
     local hitboxPart = player.Character and player.Character:FindFirstChild("HitboxVisualizer")
-    if hitboxPart then
-        hitboxPart:Destroy()
-    end
+    if hitboxPart then hitboxPart:Destroy() end
 end)
+
+local function safeUpdateHeadSize()
+    pcall(function()
+        if player.Character and player.Character:FindFirstChild("Head") then
+            updateHeadSize()
+        end
+    end)
+end
+
+local function safeUpdateHitbox()
+    pcall(function()
+        if player.Character then
+            updateHitboxVisualizer()
+        end
+    end)
+end
 
 RunService.Heartbeat:Connect(function()
     if Config.MossHelper and player.Character and player.Character:FindFirstChild("Head") then
         local head = player.Character.Head
-
-        if not head.Size:FuzzyEq(Config.HeadSize) or
-           not (head.Position - Config.HeadOffset):FuzzyEq(head.Position) or
-           head.Transparency ~= Config.HeadTransparency then
-            updateHeadSize()
-        end
-
-        if Config.ShowHitbox then
-            local hitboxPart = player.Character:FindFirstChild("HitboxVisualizer")
-            if hitboxPart then
-                hitboxPart.Size = head.Size
-                if not hitboxPart:FindFirstChild("WeldConstraint") then
-                    createHitboxVisualizer()
-                end
-            else
-                createHitboxVisualizer()
+        pcall(function()
+            if not head.Size:FuzzyEq(Config.HeadSize) or
+               not (head.Position - Config.HeadOffset):FuzzyEq(head.Position) or
+               head.Transparency ~= Config.HeadTransparency then
+                safeUpdateHeadSize()
             end
-        end
+
+            if Config.ShowHitbox then
+                safeUpdateHitbox()
+            end
+        end)
     end
 end)
