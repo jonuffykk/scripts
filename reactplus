@@ -24,7 +24,8 @@ local Config = {
     FailCount = 0,
     MossHelper = false,
     ShowHitbox = false,
-    Range = 2
+    HeadSize = Vector3.new(2, 2, 2),
+    HeadOffset = Vector3.new(0, 0.5, 0)
 }
 
 local Window = Rayfield:CreateWindow({
@@ -72,10 +73,18 @@ end
 
 local function updatePing()
     if not Config.Active then return end
-    local currentPing = getRealPing()
-    local pingToSend = Config.DynamicMode and math.random(Config.MinPing, Config.MaxPing) or math.max(1, currentPing - Config.DynamicReduction)
 
-    local success = pcall(function()
+    local clientPing = player.PlayerScripts:FindFirstChild("ClientPing")
+    if clientPing then
+        clientPing.Enabled = not Config.Active
+    end
+
+    local currentPing = getRealPing()
+    local pingToSend = Config.DynamicMode and
+        math.random(Config.MinPing, Config.MaxPing) or
+        math.max(1, currentPing - Config.DynamicReduction)
+
+    local success, err = pcall(function()
         PingRemote:FireServer(pingToSend)
     end)
 
@@ -83,8 +92,15 @@ local function updatePing()
         Config.FailCount = Config.FailCount + 1
         if Config.FailCount >= Config.MaxFails then
             Config.Active = false
+            if clientPing then
+                clientPing.Enabled = true
+            end
             statusLabel:Set("Status: Error - Too many fails")
-            Rayfield:Notify({Title = "Error", Content = "System disabled due to failures", Duration = 3})
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "System disabled due to failures: " .. tostring(err),
+                Duration = 3
+            })
         end
     else
         Config.FailCount = 0
@@ -93,6 +109,7 @@ end
 
 local function startPingLoop()
     local startTime = tick()
+
     while not player:FindFirstChild('leaderstats') and tick() - startTime <= Config.Timeout do
         task.wait(Config.CheckInterval)
     end
@@ -100,13 +117,18 @@ local function startPingLoop()
     if not player:FindFirstChild('leaderstats') then
         Config.Active = false
         statusLabel:Set("Status: Error - Timeout")
-        Rayfield:Notify({Title = "Error", Content = "System timeout", Duration = 3})
+        Rayfield:Notify({
+            Title = "Error",
+            Content = "System timeout - leaderstats not found",
+            Duration = 3
+        })
         return
     end
 
     if Config.Active then
-        if player.PlayerScripts:FindFirstChild("ClientPing") then
-            player.PlayerScripts.ClientPing.Enabled = false
+        local clientPing = player.PlayerScripts:FindFirstChild("ClientPing")
+        if clientPing then
+            clientPing.Enabled = false
         end
 
         task.spawn(function()
@@ -122,19 +144,27 @@ local function updateHeadSize()
     if not player.Character or not player.Character:FindFirstChild("Head") then return end
 
     local head = player.Character.Head
-    local originalSize = Vector3.new(2, 1, 1)
+    local originalSize = Vector3.new(2, 2, 2)
     local originalTransparency = 0
 
     if Config.MossHelper then
-        head.Size = Vector3.new(Config.Range, Config.Range, Config.Range)
+        local currentPosition = head.Position
+        head.Size = Config.HeadSize
+        head.Position = currentPosition + Config.HeadOffset
         head.Transparency = 0.5
     else
         head.Size = originalSize
+        head.Position = head.Position - Config.HeadOffset
         head.Transparency = originalTransparency
     end
 end
 
 local function createHitboxVisualizer()
+    if not player.Character or not player.Character:FindFirstChild("Head") then return end
+
+    local existingHitbox = player.Character:FindFirstChild("HitboxVisualizer")
+    if existingHitbox then existingHitbox:Destroy() end
+
     local hitboxPart = Instance.new("Part")
     hitboxPart.Name = "HitboxVisualizer"
     hitboxPart.Anchored = false
@@ -142,16 +172,15 @@ local function createHitboxVisualizer()
     hitboxPart.Transparency = 0.6
     hitboxPart.BrickColor = BrickColor.new("Really red")
     hitboxPart.Material = Enum.Material.Neon
+    hitboxPart.Size = player.Character.Head.Size
 
-    local weld = Instance.new("Weld")
+    local weld = Instance.new("WeldConstraint")
     weld.Part0 = hitboxPart
-    weld.C0 = CFrame.new(0, 0, 0)
-    hitboxPart.Parent = player.Character
+    weld.Part1 = player.Character.Head
+    weld.Parent = hitboxPart
 
-    if player.Character and player.Character:FindFirstChild("Head") then
-        weld.Part1 = player.Character.Head
-        weld.Parent = hitboxPart
-    end
+    hitboxPart.CFrame = player.Character.Head.CFrame
+    hitboxPart.Parent = player.Character
 
     return hitboxPart
 end
@@ -162,7 +191,7 @@ local function updateHitboxVisualizer()
     local hitboxPart = player.Character:FindFirstChild("HitboxVisualizer")
 
     if Config.ShowHitbox then
-        if not hitboxPart then
+        if not hitboxPart or not hitboxPart:FindFirstChild("WeldConstraint") then
             hitboxPart = createHitboxVisualizer()
         end
         hitboxPart.Size = player.Character.Head.Size
@@ -177,8 +206,8 @@ ReactTab:CreateSection("Main Controls")
 
 ReactTab:CreateToggle({
     Name = "Moss Helper",
-    Info = "Modifies head size for better detection",
-    CurrentValue = Config.MossHelper,
+    Info = "Modifies head size and position",
+    CurrentValue = false,
     Flag = "ToggleMoss",
     Callback = function(Value)
         Config.MossHelper = Value
@@ -190,7 +219,7 @@ ReactTab:CreateToggle({
 ReactTab:CreateToggle({
     Name = "Show Hitbox",
     Info = "Displays head hitbox visualization",
-    CurrentValue = Config.ShowHitbox,
+    CurrentValue = false,
     Flag = "ToggleHitbox",
     Callback = function(Value)
         Config.ShowHitbox = Value
@@ -198,20 +227,87 @@ ReactTab:CreateToggle({
     end
 })
 
-ReactTab:CreateSlider({
-    Name = "Range",
-    Info = "Head size multiplier",
-    Range = {2, 10},
-    Increment = 1,
-    Suffix = "x",
-    CurrentValue = Config.Range,
-    Flag = "SliderRange",
-    Callback = function(Value)
-        Config.Range = Value
+ReactTab:CreateButton({
+    Name = "Reset Size",
+    Callback = function()
+        Config.HeadSize = Vector3.new(2, 2, 2)
         if Config.MossHelper then
             updateHeadSize()
             updateHitboxVisualizer()
         end
+    end
+})
+
+ReactTab:CreateButton({
+    Name = "Reset Position",
+    Callback = function()
+        Config.HeadOffset = Vector3.new(0, 0.5, 0)
+        if Config.MossHelper then
+            updateHeadSize()
+            updateHitboxVisualizer()
+        end
+    end
+})
+
+ReactTab:CreateSection("Head Configuration")
+
+ReactTab:CreateInput({
+    Name = "Head Size (X,Y,Z)",
+    PlaceholderText = "2,2,2",
+    RemoveTextAfterFocusLost = false,
+    Flag = "HeadSize",
+    Callback = function(Text)
+        local x, y, z = Text:match("([^,]+)%s*,%s*([^,]+)%s*,%s*([^,]+)")
+        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+
+        if x and y and z then
+            Config.HeadSize = Vector3.new(
+                math.clamp(x, 0.1, 100),
+                math.clamp(y, 0.1, 100),
+                math.clamp(z, 0.1, 100)
+            )
+            if Config.MossHelper then
+                updateHeadSize()
+                updateHitboxVisualizer()
+            end
+            return true
+        end
+        Rayfield:Notify({
+            Title = "Invalid Input",
+            Content = "Please use format: x,y,z (e.g. 2,2,2)",
+            Duration = 3
+        })
+        return false
+    end
+})
+
+ReactTab:CreateInput({
+    Name = "Head Offset (X,Y,Z)",
+    PlaceholderText = "0,0.5,0",
+    RemoveTextAfterFocusLost = false,
+    Flag = "HeadOffset",
+    Callback = function(Text)
+        local x, y, z = Text:match("([^,]+)%s*,%s*([^,]+)%s*,%s*([^,]+)")
+        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+
+        if x and y and z then
+            Config.HeadOffset = Vector3.new(
+                math.clamp(x, -50, 50),
+                math.clamp(y, -50, 50),
+                math.clamp(z, -50, 50)
+            )
+            if Config.MossHelper then
+                updateHeadSize()
+                updateHitboxVisualizer()
+            end
+            return true
+        end
+        Rayfield:Notify({
+            Title = "Invalid Input",
+            Content = "Please use format: x,y,z (e.g. 0,0.5,0)",
+            Duration = 3
+        })
+        return false
     end
 })
 
@@ -240,14 +336,20 @@ local toggleReact = PingTab:CreateToggle({
 
 local dynamicToggle = PingTab:CreateToggle({
     Name = "Dynamic Mode",
-    Info = "Toggle between fixed and random ping",
+    Info = "Toggle between dynamic and reduction mode",
     CurrentValue = Config.DynamicMode,
     Flag = "ToggleDynamic",
     Callback = function(Value)
         Config.DynamicMode = Value
-        if sliderReduction then sliderReduction.Instance.Visible = Value end
-        if sliderMin then sliderMin.Instance.Visible = not Value end
-        if sliderMax then sliderMax.Instance.Visible = not Value end
+        if sliderReduction then
+            sliderReduction.Instance.Visible = not Value
+        end
+        if sliderMin then
+            sliderMin.Instance.Visible = Value
+        end
+        if sliderMax then
+            sliderMax.Instance.Visible = Value
+        end
     end
 })
 
@@ -349,8 +451,12 @@ player.CharacterAdded:Connect(function(char)
     local head = char:WaitForChild("Head", 10)
     if head then
         task.wait(0.1)
-        updateHeadSize()
-        updateHitboxVisualizer()
+        if Config.MossHelper then
+            updateHeadSize()
+        end
+        if Config.ShowHitbox then
+            createHitboxVisualizer()
+        end
     end
 end)
 
@@ -362,10 +468,23 @@ player.CharacterRemoving:Connect(function()
 end)
 
 RunService.Heartbeat:Connect(function()
-    if Config.ShowHitbox and player.Character and player.Character:FindFirstChild("HitboxVisualizer") then
-        local hitboxPart = player.Character.HitboxVisualizer
-        if hitboxPart then
-            hitboxPart.Size = player.Character.Head.Size
+    if Config.MossHelper and player.Character and player.Character:FindFirstChild("Head") then
+        local head = player.Character.Head
+
+        if not head.Size:FuzzyEq(Config.HeadSize) then
+            updateHeadSize()
+        end
+
+        if Config.ShowHitbox then
+            local hitboxPart = player.Character:FindFirstChild("HitboxVisualizer")
+            if hitboxPart then
+                hitboxPart.Size = head.Size
+                if not hitboxPart:FindFirstChild("WeldConstraint") then
+                    createHitboxVisualizer()
+                end
+            else
+                createHitboxVisualizer()
+            end
         end
     end
 end)
