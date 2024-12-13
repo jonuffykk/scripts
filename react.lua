@@ -70,9 +70,8 @@ local function safeUpdateHeadSize()
     local head = player.Character.Head
 
     if Config.MossHelper then
-        local currentPosition = head.Position
         head.Size = Config.HeadSize
-        head.Position = currentPosition + Config.HeadOffset
+        head.Position = head.Position + Config.HeadOffset
         head.Transparency = Config.HeadTransparency
     else
         head.Size = Vector3.new(2, 2, 2)
@@ -488,9 +487,7 @@ RunService.Heartbeat:Connect(function()
     if Config.MossHelper and player.Character and player.Character:FindFirstChild("Head") then
         local head = player.Character.Head
         pcall(function()
-            if not head.Size:FuzzyEq(Config.HeadSize) or
-               not (head.Position - Config.HeadOffset):FuzzyEq(head.Position) or
-               head.Transparency ~= Config.HeadTransparency then
+            if head.Size ~= Config.HeadSize then
                 safeUpdateHeadSize()
             end
 
