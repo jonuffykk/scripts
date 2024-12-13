@@ -400,6 +400,43 @@ local sliderMax = PingTab:CreateSlider({
 
 SettingsTab:CreateSection("System")
 
+local function saveSettings()
+    local savedData = {
+        MinPing = Config.MinPing,
+        MaxPing = Config.MaxPing,
+        UpdateTime = Config.UpdateTime,
+        DynamicMode = Config.DynamicMode,
+        DynamicReduction = Config.DynamicReduction,
+        MaxFails = Config.MaxFails,
+        Timeout = Config.Timeout,
+        CheckInterval = Config.CheckInterval,
+        MossHelper = Config.MossHelper,
+        ShowHitbox = Config.ShowHitbox,
+        HeadSize = {Config.HeadSize.X, Config.HeadSize.Y, Config.HeadSize.Z},
+        HeadOffset = {Config.HeadOffset.X, Config.HeadOffset.Y, Config.HeadOffset.Z},
+        HeadTransparency = Config.HeadTransparency
+    }
+    writefile("ReactPlus.json", game:GetService("HttpService"):JSONEncode(savedData))
+end
+
+local function loadSettings()
+    if isfile("ReactPlus.json") then
+        local success, savedData = pcall(function()
+            return game:GetService("HttpService"):JSONDecode(readfile("ReactPlus.json"))
+        end)
+
+        if success and savedData then
+            for key, value in pairs(savedData) do
+                if key == "HeadSize" or key == "HeadOffset" then
+                    Config[key] = Vector3.new(value[1], value[2], value[3])
+                else
+                    Config[key] = value
+                end
+            end
+        end
+    end
+end
+
 SettingsTab:CreateButton({
     Name = "Reset Default",
     Callback = function()
@@ -418,37 +455,29 @@ SettingsTab:CreateButton({
         Config.HeadOffset = Vector3.new(0, 0, 0)
         Config.HeadTransparency = 0.5
 
-        if sliderReduction then sliderReduction:Set(60) end
-        if sliderMin then sliderMin:Set(70) end
-        if sliderMax then sliderMax:Set(90) end
-        ReactTab:Get("HeadSize"):Set("2,2,2")
-        ReactTab:Get("HeadOffset"):Set("0,0,0")
-        ReactTab:Get("HeadTransparency"):Set(0.5)
-        ReactTab:Get("ToggleMoss"):Set(false)
-        ReactTab:Get("ToggleHitbox"):Set(false)
-        PingTab:Get("ToggleDynamic"):Set(false)
+        -- Atualizar UI
+        PingTab:Set("DynamicMode", false)
+        PingTab:Set("DynamicReduction", 60)
+        PingTab:Set("MinPing", 70)
+        PingTab:Set("MaxPing", 90)
+        ReactTab:Set("MossHelper", false)
+        ReactTab:Set("ShowHitbox", false)
+        ReactTab:Set("HeadSize", "2,2,2")
+        ReactTab:Set("HeadOffset", "0,0,0")
+        ReactTab:Set("HeadTransparency", 0.5)
+        SettingsTab:Set("UpdateTime", 2)
+        SettingsTab:Set("MaxFails", 3)
 
+        -- Atualizar visualização
         updateHeadSize()
         updateHitboxVisualizer()
+        saveSettings()
 
         Rayfield:Notify({
             Title = "Reset Complete",
             Content = "All settings restored to default",
             Duration = 2
         })
-    end
-})
-
-SettingsTab:CreateButton({
-    Name = "Respawn",
-    Callback = function()
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local DefaultChatSystemChatEvents = ReplicatedStorage:WaitForChild("DefaultChatSystemChatEvents")
-        local SayMessageRequest = DefaultChatSystemChatEvents:WaitForChild("SayMessageRequest")
-
-        if SayMessageRequest then
-            SayMessageRequest:FireServer("rtp", "All")
-        end
     end
 })
 
@@ -504,7 +533,8 @@ local function loadSavedConfig()
     end)
 end
 
-Rayfield:LoadConfiguration()
+-- Carregar configurações ao iniciar
+loadSettings()
 task.wait(0.5)
 loadSavedConfig()
 
