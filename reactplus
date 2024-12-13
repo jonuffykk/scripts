@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Stats = game:GetService("Stats")
 local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 if not player then return end
@@ -38,24 +39,15 @@ local Window = Rayfield:CreateWindow({
         FolderName = nil,
         FileName = "ReactPlus"
     },
-    KeySystem = false,
-    KeySettings = nil,
-    Theme = {
-        TextColor = Color3.fromRGB(240, 240, 240),
-        Background = Color3.fromRGB(15, 15, 15),
-        Topbar = Color3.fromRGB(20, 20, 20),
-        TabBackground = Color3.fromRGB(25, 25, 25),
-        TabStroke = Color3.fromRGB(35, 35, 35),
-        TabBackgroundSelected = Color3.fromRGB(30, 30, 30),
-        ElementBackground = Color3.fromRGB(20, 20, 20),
-        ElementBackgroundHover = Color3.fromRGB(25, 25, 25),
-        ElementStroke = Color3.fromRGB(35, 35, 35),
-        SliderBackground = Color3.fromRGB(25, 25, 25),
-        SliderProgress = Color3.fromRGB(60, 60, 60),
-        ToggleBackground = Color3.fromRGB(20, 20, 20),
-        ToggleEnabled = Color3.fromRGB(0, 146, 214),
-        ToggleDisabled = Color3.fromRGB(60, 60, 60),
-        DropdownBackground = Color3.fromRGB(20, 20, 20)
+    KeySystem = true,
+    KeySettings = {
+        Title = "React Plus",
+        Subtitle = "Key System",
+        Note = "Você pode pegar essa key no meu discord (jonuffykk).",
+        FileName = "ReactPlusKey",
+        SaveKey = true,
+        GrabKeyFromSite = false,
+        Key = {"dilton"}
     }
 })
 
@@ -73,16 +65,165 @@ local function getRealPing()
     return success and ping or 0
 end
 
+local function safeUpdateHeadSize()
+    if not player.Character or not player.Character:FindFirstChild("Head") then return end
+    local head = player.Character.Head
+
+    if Config.MossHelper then
+        local currentPosition = head.Position
+        head.Size = Config.HeadSize
+        head.Position = currentPosition + Config.HeadOffset
+        head.Transparency = Config.HeadTransparency
+    else
+        head.Size = Vector3.new(2, 2, 2)
+        head.Position = head.Position - Config.HeadOffset
+        head.Transparency = 0
+    end
+end
+
+local function createHitboxVisualizer()
+    if not player.Character or not player.Character:FindFirstChild("Head") then return end
+
+    local existingHitbox = player.Character:FindFirstChild("HitboxVisualizer")
+    if existingHitbox then existingHitbox:Destroy() end
+
+    if Config.ShowHitbox then
+        local hitboxPart = Instance.new("Part")
+        hitboxPart.Name = "HitboxVisualizer"
+        hitboxPart.Anchored = false
+        hitboxPart.CanCollide = false
+        hitboxPart.Transparency = 0.6
+        hitboxPart.BrickColor = BrickColor.new("Really red")
+        hitboxPart.Material = Enum.Material.Neon
+        hitboxPart.Size = player.Character.Head.Size
+
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = hitboxPart
+        weld.Part1 = player.Character.Head
+        weld.Parent = hitboxPart
+
+        hitboxPart.CFrame = player.Character.Head.CFrame
+        hitboxPart.Parent = player.Character
+    end
+end
+
+ReactTab:CreateSection("Main Controls")
+
+ReactTab:CreateToggle({
+    Name = "Moss Helper",
+    Info = {
+        Title = "Moss Helper",
+        Description = "Modifies head size and position"
+    },
+    CurrentValue = Config.MossHelper,
+    Flag = "MossHelper",
+    Callback = function(Value)
+        Config.MossHelper = Value
+        safeUpdateHeadSize()
+        createHitboxVisualizer()
+    end
+})
+
+ReactTab:CreateToggle({
+    Name = "Show Hitbox",
+    Info = {
+        Title = "Show Hitbox",
+        Description = "Displays head hitbox visualization"
+    },
+    CurrentValue = Config.ShowHitbox,
+    Flag = "ShowHitbox",
+    Callback = function(Value)
+        Config.ShowHitbox = Value
+        createHitboxVisualizer()
+    end
+})
+
+ReactTab:CreateInput({
+    Name = "Head Size (X,Y,Z)",
+    PlaceholderText = "2,2,2",
+    NumbersOnly = true,
+    RemoveTextAfterFocusLost = false,
+    Flag = "HeadSize",
+    Callback = function(Text)
+        local x, y, z = Text:match("([^,]+)%s*,%s*([^,]+)%s*,%s*([^,]+)")
+        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+
+        if x and y and z then
+            Config.HeadSize = Vector3.new(
+                math.clamp(x, 0.1, 100),
+                math.clamp(y, 0.1, 100),
+                math.clamp(z, 0.1, 100)
+            )
+            if Config.MossHelper then
+                safeUpdateHeadSize()
+                createHitboxVisualizer()
+            end
+            return true
+        end
+        return false
+    end
+})
+
+ReactTab:CreateInput({
+    Name = "Head Offset (X,Y,Z)",
+    PlaceholderText = "0,0,0",
+    NumbersOnly = true,
+    RemoveTextAfterFocusLost = false,
+    Flag = "HeadOffset",
+    Callback = function(Text)
+        local x, y, z = Text:match("([^,]+)%s*,%s*([^,]+)%s*,%s*([^,]+)")
+        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+
+        if x and y and z then
+            Config.HeadOffset = Vector3.new(
+                math.clamp(x, -50, 50),
+                math.clamp(y, -50, 50),
+                math.clamp(z, -50, 50)
+            )
+            if Config.MossHelper then
+                safeUpdateHeadSize()
+                createHitboxVisualizer()
+            end
+            return true
+        end
+        return false
+    end
+})
+
+ReactTab:CreateSlider({
+    Name = "Head Transparency",
+    Info = {
+        Title = "Head Transparency",
+        Description = "Adjust head visibility"
+    },
+    Range = {0, 1},
+    Increment = 0.1,
+    CurrentValue = Config.HeadTransparency,
+    Flag = "HeadTransparency",
+    Callback = function(Value)
+        Config.HeadTransparency = Value
+        safeUpdateHeadSize()
+    end
+})
+
+PingTab:CreateSection("Controls")
+
 local function updatePing()
     if not Config.Active then return end
+
     local clientPing = player.PlayerScripts:FindFirstChild("ClientPing")
     if clientPing then clientPing.Enabled = not Config.Active end
 
     local currentPing = getRealPing()
-    local pingToSend = Config.DynamicMode and math.random(Config.MinPing, Config.MaxPing) or math.max(1, currentPing - Config.DynamicReduction)
+    local pingToSend = Config.DynamicMode and
+        math.random(Config.MinPing, Config.MaxPing) or
+        math.max(1, currentPing - Config.DynamicReduction)
 
-    local success, err = pcall(function()
+    local success = pcall(function()
         PingRemote:FireServer(pingToSend)
+        statusLabel:Set("Status: " .. (Config.DynamicMode and
+            string.format("Range: %d-%d ms", Config.MinPing, Config.MaxPing) or
+            string.format("Reducing %d ms", Config.DynamicReduction)))
     end)
 
     if not success then
@@ -93,7 +234,7 @@ local function updatePing()
             statusLabel:Set("Status: Error - Too many fails")
             Rayfield:Notify({
                 Title = "Error",
-                Content = "System disabled due to failures: " .. tostring(err),
+                Content = "System disabled due to failures",
                 Duration = 3
             })
         end
@@ -119,219 +260,63 @@ local function startPingLoop()
         return
     end
 
-    if Config.Active then
-        local clientPing = player.PlayerScripts:FindFirstChild("ClientPing")
-        if clientPing then clientPing.Enabled = false end
-        task.spawn(function()
-            while Config.Active do
-                updatePing()
-                task.wait(Config.UpdateTime)
+    task.spawn(function()
+        while Config.Active do
+            updatePing()
+            task.wait(Config.UpdateTime)
+        end
+    end)
+end
+
+local function autoUpdateSystem()
+    RunService.Heartbeat:Connect(function()
+        if Config.Active then
+            pingLabel:Set("Your Ping: " .. getRealPing() .. "ms")
+
+            local clientPing = player.PlayerScripts:FindFirstChild("ClientPing")
+            if clientPing and clientPing.Enabled ~= not Config.Active then
+                clientPing.Enabled = not Config.Active
             end
-        end)
-    end
-end
-
-local function updateHeadSize()
-    if not player.Character or not player.Character:FindFirstChild("Head") then return end
-    local head = player.Character.Head
-    local originalSize = Vector3.new(2, 2, 2)
-    local originalTransparency = 0
-
-    if Config.MossHelper then
-        local currentPosition = head.Position
-        head.Size = Config.HeadSize
-        head.Position = currentPosition + Config.HeadOffset
-        head.Transparency = Config.HeadTransparency
-    else
-        head.Size = originalSize
-        head.Position = head.Position - Config.HeadOffset
-        head.Transparency = originalTransparency
-    end
-end
-
-local function createHitboxVisualizer()
-    if not player.Character or not player.Character:FindFirstChild("Head") then return end
-    local existingHitbox = player.Character:FindFirstChild("HitboxVisualizer")
-    if existingHitbox then existingHitbox:Destroy() end
-
-    local hitboxPart = Instance.new("Part")
-    hitboxPart.Name = "HitboxVisualizer"
-    hitboxPart.Anchored = false
-    hitboxPart.CanCollide = false
-    hitboxPart.Transparency = 0.6
-    hitboxPart.BrickColor = BrickColor.new("Really red")
-    hitboxPart.Material = Enum.Material.Neon
-    hitboxPart.Size = player.Character.Head.Size
-
-    local weld = Instance.new("WeldConstraint")
-    weld.Part0 = hitboxPart
-    weld.Part1 = player.Character.Head
-    weld.Parent = hitboxPart
-
-    hitboxPart.CFrame = player.Character.Head.CFrame
-    hitboxPart.Parent = player.Character
-    return hitboxPart
-end
-
-local function updateHitboxVisualizer()
-    if not player.Character or not player.Character:FindFirstChild("Head") then return end
-    local hitboxPart = player.Character:FindFirstChild("HitboxVisualizer")
-
-    if Config.ShowHitbox then
-        if not hitboxPart or not hitboxPart:FindFirstChild("WeldConstraint") then
-            hitboxPart = createHitboxVisualizer()
         end
-        hitboxPart.Size = player.Character.Head.Size
-    else
-        if hitboxPart then hitboxPart:Destroy() end
-    end
+    end)
 end
 
-ReactTab:CreateSection("Main Controls")
+local function initializeSystem()
+    loadSettings()
+    task.wait(0.5)
 
-ReactTab:CreateToggle({
-    Name = "Moss Helper",
-    Info = "Modifies head size and position",
-    CurrentValue = Config.MossHelper,
-    Flag = "MossHelper",
-    Callback = function(Value)
-        Config.MossHelper = Value
-        safeUpdateHeadSize()
-        safeUpdateHitbox()
-    end
-})
-
-ReactTab:CreateToggle({
-    Name = "Show Hitbox",
-    Info = "Displays head hitbox visualization",
-    CurrentValue = Config.ShowHitbox,
-    Flag = "ShowHitbox",
-    Callback = function(Value)
-        Config.ShowHitbox = Value
-        safeUpdateHitbox()
-    end
-})
-
-ReactTab:CreateButton({
-    Name = "Reset Size",
-    Callback = function()
-        Config.HeadSize = Vector3.new(2, 2, 2)
-        Config.HeadTransparency = 0.5
-        if Config.MossHelper then
-            updateHeadSize()
-            updateHitboxVisualizer()
-        end
-        ReactTab:Get("HeadSize"):Set("2,2,2")
-        ReactTab:Get("HeadTransparency"):Set(0.5)
-        Rayfield:Notify({
-            Title = "Reset",
-            Content = "Head size and transparency reset to default",
-            Duration = 2
-        })
-    end
-})
-
-ReactTab:CreateButton({
-    Name = "Reset Position",
-    Callback = function()
-        Config.HeadOffset = Vector3.new(0, 0, 0)
-        if Config.MossHelper then
-            updateHeadSize()
-            updateHitboxVisualizer()
-        end
-        ReactTab:Get("HeadOffset"):Set("0,0,0")
-        Rayfield:Notify({
-            Title = "Reset",
-            Content = "Head position reset to default",
-            Duration = 2
-        })
-    end
-})
-
-ReactTab:CreateSection("Head Configuration")
-
-ReactTab:CreateSlider({
-    Name = "Head Transparency",
-    Info = "Adjust head visibility",
-    Range = {0, 1},
-    Increment = 0.1,
-    CurrentValue = Config.HeadTransparency,
-    Flag = "HeadTransparency",
-    Callback = function(Value)
-        Config.HeadTransparency = Value
+    pcall(function()
         if Config.MossHelper then
             safeUpdateHeadSize()
         end
-    end
-})
-
-ReactTab:CreateInput({
-    Name = "Head Size (X,Y,Z)",
-    PlaceholderText = "2,2,2",
-    RemoveTextAfterFocusLost = false,
-    Flag = "HeadSize",
-    Callback = function(Text)
-        local x, y, z = Text:match("([^,]+)%s*,%s*([^,]+)%s*,%s*([^,]+)")
-        x, y, z = tonumber(x), tonumber(y), tonumber(z)
-
-        if x and y and z then
-            Config.HeadSize = Vector3.new(
-                math.clamp(x, 0.1, 100),
-                math.clamp(y, 0.1, 100),
-                math.clamp(z, 0.1, 100)
-            )
-            if Config.MossHelper then
-                updateHeadSize()
-                updateHitboxVisualizer()
-            end
-            return true
+        if Config.ShowHitbox then
+            createHitboxVisualizer()
         end
-        return false
-    end
-})
+        autoUpdateSystem()
+    end)
+end
 
-local sizeInput = ReactTab:CreateInput({
-    Name = "Head Offset (X,Y,Z)",
-    PlaceholderText = "0,0,0",
-    RemoveTextAfterFocusLost = false,
-    Flag = "HeadOffset",
-    Callback = function(Text)
-        local x, y, z = Text:match("([^,]+)%s*,%s*([^,]+)%s*,%s*([^,]+)")
-        x, y, z = tonumber(x), tonumber(y), tonumber(z)
-
-        if x and y and z then
-            Config.HeadOffset = Vector3.new(
-                math.clamp(x, -50, 50),
-                math.clamp(y, -50, 50),
-                math.clamp(z, -50, 50)
-            )
-            if Config.MossHelper then
-                updateHeadSize()
-                updateHitboxVisualizer()
-            end
-            return true
-        end
-        return false
-    end
-})
-
-PingTab:CreateSection("Controls")
-
-local toggleReact = PingTab:CreateToggle({
+PingTab:CreateToggle({
     Name = "Enable React Plus",
-    Info = "Toggles the system on/off",
+    Info = {
+        Title = "React Plus",
+        Description = "Toggles the ping modification system"
+    },
     CurrentValue = Config.Active,
-    Flag = "ToggleReact",
+    Flag = "ReactEnabled",
     Callback = function(Value)
         Config.Active = Value
         Config.FailCount = 0
-        statusLabel:Set("Status: " .. (Value and "Enabled" or "Disabled"))
-        if player.PlayerScripts:FindFirstChild("ClientPing") then
-            player.PlayerScripts.ClientPing.Enabled = not Value
+
+        local clientPing = player.PlayerScripts:FindFirstChild("ClientPing")
+        if clientPing then
+            clientPing.Enabled = not Value
         end
+
         if Value then
             startPingLoop()
-            Rayfield:Notify({Title = "Success", Content = "System enabled", Duration = 2})
+        else
+            statusLabel:Set("Status: Disabled")
         end
     end
 })
@@ -343,9 +328,6 @@ local dynamicToggle = PingTab:CreateToggle({
     Flag = "ToggleDynamic",
     Callback = function(Value)
         Config.DynamicMode = Value
-        if sliderReduction then sliderReduction.Instance.Visible = not Value end
-        if sliderMin then sliderMin.Instance.Visible = Value end
-        if sliderMax then sliderMax.Instance.Visible = Value end
     end
 })
 
@@ -354,7 +336,7 @@ PingTab:CreateSection("Adjustments")
 local sliderReduction = PingTab:CreateSlider({
     Name = "Reduction",
     Info = "Value to reduce from current ping",
-    Range = {1, 1000},
+    Range = {1, 200},
     Increment = 1,
     Suffix = "ms",
     CurrentValue = Config.DynamicReduction,
@@ -367,7 +349,7 @@ local sliderReduction = PingTab:CreateSlider({
 local sliderMin = PingTab:CreateSlider({
     Name = "Minimum",
     Info = "Minimum ping (dynamic mode)",
-    Range = {1, 1000},
+    Range = {1, 200},
     Increment = 1,
     Suffix = "ms",
     CurrentValue = Config.MinPing,
@@ -384,7 +366,7 @@ local sliderMin = PingTab:CreateSlider({
 local sliderMax = PingTab:CreateSlider({
     Name = "Maximum",
     Info = "Maximum ping (dynamic mode)",
-    Range = {1, 1000},
+    Range = {1, 200},
     Increment = 1,
     Suffix = "ms",
     CurrentValue = Config.MaxPing,
@@ -416,13 +398,13 @@ local function saveSettings()
         HeadOffset = {Config.HeadOffset.X, Config.HeadOffset.Y, Config.HeadOffset.Z},
         HeadTransparency = Config.HeadTransparency
     }
-    writefile("ReactPlus.json", game:GetService("HttpService"):JSONEncode(savedData))
+    writefile("ReactPlus.json", HttpService:JSONEncode(savedData))
 end
 
 local function loadSettings()
     if isfile("ReactPlus.json") then
         local success, savedData = pcall(function()
-            return game:GetService("HttpService"):JSONDecode(readfile("ReactPlus.json"))
+            return HttpService:JSONDecode(readfile("ReactPlus.json"))
         end)
 
         if success and savedData then
@@ -436,50 +418,6 @@ local function loadSettings()
         end
     end
 end
-
-SettingsTab:CreateButton({
-    Name = "Reset Default",
-    Callback = function()
-        Config.MinPing = 70
-        Config.MaxPing = 90
-        Config.UpdateTime = 2
-        Config.DynamicMode = false
-        Config.DynamicReduction = 60
-        Config.MaxFails = 3
-        Config.Timeout = 10
-        Config.CheckInterval = 0.1
-        Config.FailCount = 0
-        Config.MossHelper = false
-        Config.ShowHitbox = false
-        Config.HeadSize = Vector3.new(2, 2, 2)
-        Config.HeadOffset = Vector3.new(0, 0, 0)
-        Config.HeadTransparency = 0.5
-
-        -- Atualizar UI
-        PingTab:Set("DynamicMode", false)
-        PingTab:Set("DynamicReduction", 60)
-        PingTab:Set("MinPing", 70)
-        PingTab:Set("MaxPing", 90)
-        ReactTab:Set("MossHelper", false)
-        ReactTab:Set("ShowHitbox", false)
-        ReactTab:Set("HeadSize", "2,2,2")
-        ReactTab:Set("HeadOffset", "0,0,0")
-        ReactTab:Set("HeadTransparency", 0.5)
-        SettingsTab:Set("UpdateTime", 2)
-        SettingsTab:Set("MaxFails", 3)
-
-        -- Atualizar visualização
-        updateHeadSize()
-        updateHitboxVisualizer()
-        saveSettings()
-
-        Rayfield:Notify({
-            Title = "Reset Complete",
-            Content = "All settings restored to default",
-            Duration = 2
-        })
-    end
-})
 
 SettingsTab:CreateSlider({
     Name = "Update Time",
@@ -518,31 +456,33 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-if sliderReduction then sliderReduction.Instance.Visible = Config.DynamicMode end
-if sliderMin then sliderMin.Instance.Visible = not Config.DynamicMode end
-if sliderMax then sliderMax.Instance.Visible = not Config.DynamicMode end
-
 local function loadSavedConfig()
     pcall(function()
         if Config.MossHelper then
             safeUpdateHeadSize()
         end
         if Config.ShowHitbox then
-            safeUpdateHitbox()
+            createHitboxVisualizer()
         end
     end)
 end
 
--- Carregar configurações ao iniciar
 loadSettings()
 task.wait(0.5)
-loadSavedConfig()
+pcall(function()
+    if Config.MossHelper then
+        safeUpdateHeadSize()
+    end
+    if Config.ShowHitbox then
+        createHitboxVisualizer()
+    end
+end)
 
 player.CharacterAdded:Connect(function(char)
     local head = char:WaitForChild("Head", 10)
     if head then
         task.wait(0.1)
-        if Config.MossHelper then updateHeadSize() end
+        if Config.MossHelper then safeUpdateHeadSize() end
         if Config.ShowHitbox then createHitboxVisualizer() end
     end
 end)
@@ -551,22 +491,6 @@ player.CharacterRemoving:Connect(function()
     local hitboxPart = player.Character and player.Character:FindFirstChild("HitboxVisualizer")
     if hitboxPart then hitboxPart:Destroy() end
 end)
-
-local function safeUpdateHeadSize()
-    pcall(function()
-        if player.Character and player.Character:FindFirstChild("Head") then
-            updateHeadSize()
-        end
-    end)
-end
-
-local function safeUpdateHitbox()
-    pcall(function()
-        if player.Character then
-            updateHitboxVisualizer()
-        end
-    end)
-end
 
 RunService.Heartbeat:Connect(function()
     if Config.MossHelper and player.Character and player.Character:FindFirstChild("Head") then
@@ -579,7 +503,7 @@ RunService.Heartbeat:Connect(function()
             end
 
             if Config.ShowHitbox then
-                safeUpdateHitbox()
+                createHitboxVisualizer()
             end
         end)
     end
