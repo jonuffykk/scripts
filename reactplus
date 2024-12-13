@@ -35,10 +35,11 @@ local Window = Rayfield:CreateWindow({
     LoadingSubtitle = "by Jonuffy",
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = "ReactPlusConfig",
-        FileName = "Config"
+        FolderName = nil,
+        FileName = "ReactPlus"
     },
     KeySystem = false,
+    KeySettings = nil,
     Theme = {
         TextColor = Color3.fromRGB(240, 240, 240),
         Background = Color3.fromRGB(15, 15, 15),
@@ -191,28 +192,23 @@ ReactTab:CreateSection("Main Controls")
 ReactTab:CreateToggle({
     Name = "Moss Helper",
     Info = "Modifies head size and position",
-    CurrentValue = false,
-    Flag = "ToggleMoss",
+    CurrentValue = Config.MossHelper,
+    Flag = "MossHelper",
     Callback = function(Value)
         Config.MossHelper = Value
-        updateHeadSize()
-        updateHitboxVisualizer()
+        safeUpdateHeadSize()
+        safeUpdateHitbox()
     end
 })
 
 ReactTab:CreateToggle({
     Name = "Show Hitbox",
     Info = "Displays head hitbox visualization",
-    CurrentValue = false,
-    Flag = "ToggleHitbox",
+    CurrentValue = Config.ShowHitbox,
+    Flag = "ShowHitbox",
     Callback = function(Value)
         Config.ShowHitbox = Value
-        if Value then
-            createHitboxVisualizer()
-        else
-            local hitboxPart = player.Character and player.Character:FindFirstChild("HitboxVisualizer")
-            if hitboxPart then hitboxPart:Destroy() end
-        end
+        safeUpdateHitbox()
     end
 })
 
@@ -259,13 +255,12 @@ ReactTab:CreateSlider({
     Info = "Adjust head visibility",
     Range = {0, 1},
     Increment = 0.1,
-    Suffix = "",
     CurrentValue = Config.HeadTransparency,
     Flag = "HeadTransparency",
     Callback = function(Value)
         Config.HeadTransparency = Value
         if Config.MossHelper then
-            updateHeadSize()
+            safeUpdateHeadSize()
         end
     end
 })
@@ -509,7 +504,20 @@ if sliderReduction then sliderReduction.Instance.Visible = Config.DynamicMode en
 if sliderMin then sliderMin.Instance.Visible = not Config.DynamicMode end
 if sliderMax then sliderMax.Instance.Visible = not Config.DynamicMode end
 
+local function loadSavedConfig()
+    pcall(function()
+        if Config.MossHelper then
+            safeUpdateHeadSize()
+        end
+        if Config.ShowHitbox then
+            safeUpdateHitbox()
+        end
+    end)
+end
+
 Rayfield:LoadConfiguration()
+task.wait(0.5)
+loadSavedConfig()
 
 player.CharacterAdded:Connect(function(char)
     local head = char:WaitForChild("Head", 10)
