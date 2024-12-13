@@ -25,7 +25,8 @@ local Config = {
     MossHelper = false,
     ShowHitbox = false,
     HeadSize = Vector3.new(2, 2, 2),
-    HeadOffset = Vector3.new(0, 0.5, 0)
+    HeadOffset = Vector3.new(0, 0, 0),
+    HeadTransparency = 0.5
 }
 
 local Window = Rayfield:CreateWindow({
@@ -151,7 +152,7 @@ local function updateHeadSize()
         local currentPosition = head.Position
         head.Size = Config.HeadSize
         head.Position = currentPosition + Config.HeadOffset
-        head.Transparency = 0.5
+        head.Transparency = Config.HeadTransparency
     else
         head.Size = originalSize
         head.Position = head.Position - Config.HeadOffset
@@ -231,6 +232,7 @@ ReactTab:CreateButton({
     Name = "Reset Size",
     Callback = function()
         Config.HeadSize = Vector3.new(2, 2, 2)
+        Config.HeadTransparency = 0.5
         if Config.MossHelper then
             updateHeadSize()
             updateHitboxVisualizer()
@@ -241,7 +243,7 @@ ReactTab:CreateButton({
 ReactTab:CreateButton({
     Name = "Reset Position",
     Callback = function()
-        Config.HeadOffset = Vector3.new(0, 0.5, 0)
+        Config.HeadOffset = Vector3.new(0, 0, 0)
         if Config.MossHelper then
             updateHeadSize()
             updateHitboxVisualizer()
@@ -250,6 +252,22 @@ ReactTab:CreateButton({
 })
 
 ReactTab:CreateSection("Head Configuration")
+
+ReactTab:CreateSlider({
+    Name = "Head Transparency",
+    Info = "Adjust head visibility",
+    Range = {0, 1},
+    Increment = 0.1,
+    Suffix = "",
+    CurrentValue = Config.HeadTransparency,
+    Flag = "HeadTransparency",
+    Callback = function(Value)
+        Config.HeadTransparency = Value
+        if Config.MossHelper then
+            updateHeadSize()
+        end
+    end
+})
 
 ReactTab:CreateInput({
     Name = "Head Size (X,Y,Z)",
@@ -283,7 +301,7 @@ ReactTab:CreateInput({
 
 ReactTab:CreateInput({
     Name = "Head Offset (X,Y,Z)",
-    PlaceholderText = "0,0.5,0",
+    PlaceholderText = "0,0,0",
     RemoveTextAfterFocusLost = false,
     Flag = "HeadOffset",
     Callback = function(Text)
@@ -304,7 +322,7 @@ ReactTab:CreateInput({
         end
         Rayfield:Notify({
             Title = "Invalid Input",
-            Content = "Please use format: x,y,z (e.g. 0,0.5,0)",
+            Content = "Please use format: x,y,z (e.g. 0,0,0)",
             Duration = 3
         })
         return false
@@ -471,7 +489,9 @@ RunService.Heartbeat:Connect(function()
     if Config.MossHelper and player.Character and player.Character:FindFirstChild("Head") then
         local head = player.Character.Head
 
-        if not head.Size:FuzzyEq(Config.HeadSize) then
+        if not head.Size:FuzzyEq(Config.HeadSize) or
+           not (head.Position - Config.HeadOffset):FuzzyEq(head.Position) or
+           head.Transparency ~= Config.HeadTransparency then
             updateHeadSize()
         end
 
