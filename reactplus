@@ -36,12 +36,31 @@ local Window = Rayfield:CreateWindow({
         FileName = "Config"
     },
     KeySystem = false,
-    Theme = "Ocean"
+    Theme = {
+        TextColor = Color3.fromRGB(240, 240, 240),
+        Background = Color3.fromRGB(15, 15, 15),
+        Topbar = Color3.fromRGB(20, 20, 20),
+        TabBackground = Color3.fromRGB(25, 25, 25),
+        TabStroke = Color3.fromRGB(35, 35, 35),
+        TabBackgroundSelected = Color3.fromRGB(30, 30, 30),
+        ElementBackground = Color3.fromRGB(20, 20, 20),
+        ElementBackgroundHover = Color3.fromRGB(25, 25, 25),
+        ElementStroke = Color3.fromRGB(35, 35, 35),
+        SliderBackground = Color3.fromRGB(25, 25, 25),
+        SliderProgress = Color3.fromRGB(60, 60, 60),
+        ToggleBackground = Color3.fromRGB(20, 20, 20),
+        ToggleEnabled = Color3.fromRGB(0, 146, 214),
+        ToggleDisabled = Color3.fromRGB(60, 60, 60),
+        DropdownBackground = Color3.fromRGB(20, 20, 20)
+    }
 })
 
 local ReactTab = Window:CreateTab("React", 4483362458)
 local PingTab = Window:CreateTab("Ping", 4483362458)
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
+
+local statusLabel = PingTab:CreateLabel("Status: Disabled")
+local pingLabel = PingTab:CreateLabel("Current Ping: 0ms")
 
 local function getRealPing()
     local success, ping = pcall(function()
@@ -52,7 +71,6 @@ end
 
 local function updatePing()
     if not Config.Active then return end
-
     local currentPing = getRealPing()
     local pingToSend = Config.DynamicMode and math.random(Config.MinPing, Config.MaxPing) or math.max(1, currentPing - Config.DynamicReduction)
 
@@ -61,9 +79,10 @@ local function updatePing()
     end)
 
     if not success then
-        Config.FailCount += 1
+        Config.FailCount = Config.FailCount + 1
         if Config.FailCount >= Config.MaxFails then
             Config.Active = false
+            statusLabel:Set("Status: Error - Too many fails")
             Rayfield:Notify({Title = "Error", Content = "System disabled due to failures", Duration = 3})
         end
     else
@@ -79,11 +98,16 @@ local function startPingLoop()
 
     if not player:FindFirstChild('leaderstats') then
         Config.Active = false
+        statusLabel:Set("Status: Error - Timeout")
         Rayfield:Notify({Title = "Error", Content = "System timeout", Duration = 3})
         return
     end
 
     if Config.Active then
+        if player.PlayerScripts:FindFirstChild("ClientPing") then
+            player.PlayerScripts.ClientPing.Enabled = false
+        end
+
         task.spawn(function()
             while Config.Active do
                 updatePing()
@@ -98,7 +122,7 @@ ReactTab:CreateSection("Main Controls")
 ReactTab:CreateToggle({
     Name = "Moss Helper",
     Info = "Assists with Moss detection",
-    CurrentValue = false,
+    CurrentValue = Config.MossHelper,
     Flag = "ToggleMoss",
     Callback = function(Value)
         Config.MossHelper = Value
@@ -118,21 +142,22 @@ ReactTab:CreateSlider({
     end
 })
 
-PingTab:CreateSection("Status")
-local statusLabel = PingTab:CreateLabel("Status: Disabled")
-local pingLabel = PingTab:CreateLabel("Current Ping: 0ms")
-
 PingTab:CreateSection("Controls")
 
 local toggleReact = PingTab:CreateToggle({
     Name = "Enable React Plus",
     Info = "Toggles the system on/off",
-    CurrentValue = false,
+    CurrentValue = Config.Active,
     Flag = "ToggleReact",
     Callback = function(Value)
         Config.Active = Value
         Config.FailCount = 0
         statusLabel:Set("Status: " .. (Value and "Enabled" or "Disabled"))
+
+        if player.PlayerScripts:FindFirstChild("ClientPing") then
+            player.PlayerScripts.ClientPing.Enabled = not Value
+        end
+
         if Value then
             startPingLoop()
             Rayfield:Notify({Title = "Success", Content = "System enabled", Duration = 2})
@@ -143,15 +168,10 @@ local toggleReact = PingTab:CreateToggle({
 local dynamicToggle = PingTab:CreateToggle({
     Name = "Dynamic Mode",
     Info = "Toggle between fixed and random ping",
-    CurrentValue = false,
+    CurrentValue = Config.DynamicMode,
     Flag = "ToggleDynamic",
     Callback = function(Value)
         Config.DynamicMode = Value
-        if Value then
-            if sliderReduction then sliderReduction:Set(Config.DynamicReduction) end
-            if sliderMin then sliderMin:Set(Config.MinPing) end
-            if sliderMax then sliderMax:Set(Config.MaxPing) end
-        end
         if sliderReduction then sliderReduction.Instance.Visible = not Value end
         if sliderMin then sliderMin.Instance.Visible = Value end
         if sliderMax then sliderMax.Instance.Visible = Value end
@@ -160,9 +180,7 @@ local dynamicToggle = PingTab:CreateToggle({
 
 PingTab:CreateSection("Adjustments")
 
-local sliderReduction, sliderMin, sliderMax
-
-sliderReduction = PingTab:CreateSlider({
+local sliderReduction = PingTab:CreateSlider({
     Name = "Reduction",
     Info = "Value to reduce from current ping",
     Range = {1, 1000},
@@ -175,7 +193,7 @@ sliderReduction = PingTab:CreateSlider({
     end
 })
 
-sliderMin = PingTab:CreateSlider({
+local sliderMin = PingTab:CreateSlider({
     Name = "Minimum",
     Info = "Minimum ping (dynamic mode)",
     Range = {1, 1000},
@@ -192,7 +210,7 @@ sliderMin = PingTab:CreateSlider({
     end
 })
 
-sliderMax = PingTab:CreateSlider({
+local sliderMax = PingTab:CreateSlider({
     Name = "Maximum",
     Info = "Maximum ping (dynamic mode)",
     Range = {1, 1000},
@@ -247,5 +265,9 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         Rayfield:Toggle()
     end
 end)
+
+if sliderReduction then sliderReduction.Instance.Visible = not Config.DynamicMode end
+if sliderMin then sliderMin.Instance.Visible = Config.DynamicMode end
+if sliderMax then sliderMax.Instance.Visible = Config.DynamicMode end
 
 Rayfield:LoadConfiguration()
