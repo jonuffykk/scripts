@@ -149,11 +149,7 @@ ReactTab:CreateInput({
         x, y, z = tonumber(x), tonumber(y), tonumber(z)
 
         if x and y and z then
-            Config.HeadSize = Vector3.new(
-                math.clamp(x, 0.1, 100),
-                math.clamp(y, 0.1, 100),
-                math.clamp(z, 0.1, 100)
-            )
+            Config.HeadSize = Vector3.new(x, y, z)
             if Config.MossHelper then
                 safeUpdateHeadSize()
                 createHitboxVisualizer()
@@ -175,11 +171,7 @@ ReactTab:CreateInput({
         x, y, z = tonumber(x), tonumber(y), tonumber(z)
 
         if x and y and z then
-            Config.HeadOffset = Vector3.new(
-                math.clamp(x, -50, 50),
-                math.clamp(y, -50, 50),
-                math.clamp(z, -50, 50)
-            )
+            Config.HeadOffset = Vector3.new(x, y, z)
             if Config.MossHelper then
                 safeUpdateHeadSize()
                 createHitboxVisualizer()
