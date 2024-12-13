@@ -23,6 +23,7 @@ local Config = {
     CheckInterval = 0.1,
     FailCount = 0,
     MossHelper = false,
+    ShowHitbox = false,
     Range = 2
 }
 
@@ -60,7 +61,7 @@ local PingTab = Window:CreateTab("Ping", 4483362458)
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
 
 local statusLabel = PingTab:CreateLabel("Status: Disabled")
-local pingLabel = PingTab:CreateLabel("Current Ping: 0ms")
+local pingLabel = PingTab:CreateLabel("Your Ping: 0ms")
 
 local function getRealPing()
     local success, ping = pcall(function()
@@ -117,21 +118,89 @@ local function startPingLoop()
     end
 end
 
+local function updateHeadSize()
+    if not player.Character or not player.Character:FindFirstChild("Head") then return end
+
+    local head = player.Character.Head
+    local originalSize = Vector3.new(2, 1, 1)
+    local originalTransparency = 0
+
+    if Config.MossHelper then
+        head.Size = Vector3.new(Config.Range, Config.Range, Config.Range)
+        head.Transparency = 0.5
+    else
+        head.Size = originalSize
+        head.Transparency = originalTransparency
+    end
+end
+
+local function createHitboxVisualizer()
+    local hitboxPart = Instance.new("Part")
+    hitboxPart.Name = "HitboxVisualizer"
+    hitboxPart.Anchored = false
+    hitboxPart.CanCollide = false
+    hitboxPart.Transparency = 0.6
+    hitboxPart.BrickColor = BrickColor.new("Really red")
+    hitboxPart.Material = Enum.Material.Neon
+
+    local weld = Instance.new("Weld")
+    weld.Part0 = hitboxPart
+    weld.C0 = CFrame.new(0, 0, 0)
+    hitboxPart.Parent = player.Character
+
+    if player.Character and player.Character:FindFirstChild("Head") then
+        weld.Part1 = player.Character.Head
+        weld.Parent = hitboxPart
+    end
+
+    return hitboxPart
+end
+
+local function updateHitboxVisualizer()
+    if not player.Character or not player.Character:FindFirstChild("Head") then return end
+
+    local hitboxPart = player.Character:FindFirstChild("HitboxVisualizer")
+
+    if Config.ShowHitbox then
+        if not hitboxPart then
+            hitboxPart = createHitboxVisualizer()
+        end
+        hitboxPart.Size = player.Character.Head.Size
+    else
+        if hitboxPart then
+            hitboxPart:Destroy()
+        end
+    end
+end
+
 ReactTab:CreateSection("Main Controls")
 
 ReactTab:CreateToggle({
     Name = "Moss Helper",
-    Info = "Assists with Moss detection",
+    Info = "Modifies head size for better detection",
     CurrentValue = Config.MossHelper,
     Flag = "ToggleMoss",
     Callback = function(Value)
         Config.MossHelper = Value
+        updateHeadSize()
+        updateHitboxVisualizer()
+    end
+})
+
+ReactTab:CreateToggle({
+    Name = "Show Hitbox",
+    Info = "Displays head hitbox visualization",
+    CurrentValue = Config.ShowHitbox,
+    Flag = "ToggleHitbox",
+    Callback = function(Value)
+        Config.ShowHitbox = Value
+        updateHitboxVisualizer()
     end
 })
 
 ReactTab:CreateSlider({
     Name = "Range",
-    Info = "Adjustment range for reactions",
+    Info = "Head size multiplier",
     Range = {2, 10},
     Increment = 1,
     Suffix = "x",
@@ -139,6 +208,10 @@ ReactTab:CreateSlider({
     Flag = "SliderRange",
     Callback = function(Value)
         Config.Range = Value
+        if Config.MossHelper then
+            updateHeadSize()
+            updateHitboxVisualizer()
+        end
     end
 })
 
@@ -172,9 +245,9 @@ local dynamicToggle = PingTab:CreateToggle({
     Flag = "ToggleDynamic",
     Callback = function(Value)
         Config.DynamicMode = Value
-        if sliderReduction then sliderReduction.Instance.Visible = not Value end
-        if sliderMin then sliderMin.Instance.Visible = Value end
-        if sliderMax then sliderMax.Instance.Visible = Value end
+        if sliderReduction then sliderReduction.Instance.Visible = Value end
+        if sliderMin then sliderMin.Instance.Visible = not Value end
+        if sliderMax then sliderMax.Instance.Visible = not Value end
     end
 })
 
@@ -256,7 +329,7 @@ SettingsTab:CreateSlider({
 
 RunService.Heartbeat:Connect(function()
     if Config.Active then
-        pingLabel:Set("Current Ping: " .. getRealPing() .. "ms")
+        pingLabel:Set("Your Ping: " .. getRealPing() .. "ms")
     end
 end)
 
@@ -266,8 +339,33 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-if sliderReduction then sliderReduction.Instance.Visible = not Config.DynamicMode end
-if sliderMin then sliderMin.Instance.Visible = Config.DynamicMode end
-if sliderMax then sliderMax.Instance.Visible = Config.DynamicMode end
+if sliderReduction then sliderReduction.Instance.Visible = Config.DynamicMode end
+if sliderMin then sliderMin.Instance.Visible = not Config.DynamicMode end
+if sliderMax then sliderMax.Instance.Visible = not Config.DynamicMode end
 
 Rayfield:LoadConfiguration()
+
+player.CharacterAdded:Connect(function(char)
+    local head = char:WaitForChild("Head", 10)
+    if head then
+        task.wait(0.1)
+        updateHeadSize()
+        updateHitboxVisualizer()
+    end
+end)
+
+player.CharacterRemoving:Connect(function()
+    local hitboxPart = player.Character and player.Character:FindFirstChild("HitboxVisualizer")
+    if hitboxPart then
+        hitboxPart:Destroy()
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    if Config.ShowHitbox and player.Character and player.Character:FindFirstChild("HitboxVisualizer") then
+        local hitboxPart = player.Character.HitboxVisualizer
+        if hitboxPart then
+            hitboxPart.Size = player.Character.Head.Size
+        end
+    end
+end)
