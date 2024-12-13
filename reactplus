@@ -442,23 +442,12 @@ SettingsTab:CreateButton({
 SettingsTab:CreateButton({
     Name = "Respawn",
     Callback = function()
-        if player.Character and player.Character:FindFirstChild("Humanoid") then
-            local currentPosition = player.Character.HumanoidRootPart.CFrame
-            local currentHealth = player.Character.Humanoid.Health
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local DefaultChatSystemChatEvents = ReplicatedStorage:WaitForChild("DefaultChatSystemChatEvents")
+        local SayMessageRequest = DefaultChatSystemChatEvents:WaitForChild("SayMessageRequest")
 
-            task.spawn(function()
-                player.Character:BreakJoints()
-                task.wait(0.1)
-                if player.Character then player.Character:Destroy() end
-                task.wait(0.1)
-
-                player.CharacterAdded:Wait()
-                task.wait(0.3)
-
-                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    player.Character.HumanoidRootPart.CFrame = currentPosition
-                end
-            end)
+        if SayMessageRequest then
+            SayMessageRequest:FireServer("rtp", "All")
         end
     end
 })
